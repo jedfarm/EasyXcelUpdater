@@ -1,0 +1,91 @@
+{
+  "version": "2026.05.04",
+  "processors": {
+
+    "Allergies": {
+      "file": "allergies_processor.py",
+      "function": "process_allergies_file",
+      "version": "1.0.0"
+    },
+    "Census": {
+      "file": "census_processor.py",
+      "function": "process_census_file",
+      "version": "1.0.0"
+    },
+    "Contacts": {
+      "file": "contacts_processor.py",
+      "function": "process_contacts_file",
+      "version": "1.0.0"
+    },
+    "Diagnosis": {
+      "file": "diagnosis_processor.py",
+      "function": "process_diagnosis_file",
+      "version": "1.0.0"
+    },
+    "Filter Residents": {
+      "file": "filter_residents_processor.py",
+      "function": "process_filter_residents_file",
+      "version": "1.0.0"
+    },
+    "Find Counties": {
+      "file": "find_counties_processor.py",
+      "function": "process_find_counties_file",
+      "version": "1.0.0"
+    },
+    "Find NPI": {
+      "file": "medprof_processor.py",
+      "function": "process_medprof_file",
+      "version": "1.0.0"
+    },
+    "MedProf": {
+      "file": "medprof_processor.py",
+      "function": "process_medprof_file",
+      "version": "1.0.1"
+    },
+    "Residents": {
+      "file": "residents_processor.py",
+      "function": "process_residents_file",
+      "version": "1.0.0"
+    },
+    "Vitals": {
+      "file": "vitals_processor.py",
+      "function": "process_vitals_file",
+      "version": "1.0.0"
+    },
+    "Weights": {
+      "file": "weights_processor.py",
+      "function": "process_weights_file",
+      "version": "1.0.0"
+    }
+  },
+  "templates": {
+    "ALLERGY.xlsx": {
+      "file": "templates/ALLERGY.xlsx",
+      "version": "1.0.0"
+    },
+    "CLIENT.xlsx": {
+      "file": "templates/CLIENT.xlsx",
+      "version": "1.0.0"
+    },
+    "CLIENT_CONTACT.xlsx": {
+      "file": "templates/CLIENT_CONTACT.xlsx",
+      "version": "1.0.0"
+    },
+    "CLIENT_DIAGNOSIS.xlsx": {
+      "file": "templates/CLIENT_DIAGNOSIS.xlsx",
+      "version": "1.0.0"
+    },
+    "MEDICAL_PROFESSIONAL.xlsx": {
+      "file": "templates/MEDICAL_PROFESSIONAL.xlsx",
+      "version": "1.0.0"
+    },
+    "Resident_CENSUS.xlsx": {
+      "file": "templates/Resident_CENSUS.xlsx",
+      "version": "1.0.0"
+    },
+    "WEIGHTS_AND_VITALS.xlsx": {
+      "file": "templates/WEIGHTS_AND_VITALS.xlsx",
+      "version": "1.0.0"
+    },
+  }
+}
