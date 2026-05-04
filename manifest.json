@@ -3,57 +3,57 @@
   "processors": {
 
     "Allergies": {
-      "file": "allergies_processor.py",
+      "file": "processors/allergies_processor.py",
       "function": "process_allergies_file",
       "version": "1.0.0"
     },
     "Census": {
-      "file": "census_processor.py",
+      "file": "processors/census_processor.py",
       "function": "process_census_file",
       "version": "1.0.0"
     },
     "Contacts": {
-      "file": "contacts_processor.py",
+      "file": "processors/contacts_processor.py",
       "function": "process_contacts_file",
       "version": "1.0.0"
     },
     "Diagnosis": {
-      "file": "diagnosis_processor.py",
+      "file": "processors/diagnosis_processor.py",
       "function": "process_diagnosis_file",
       "version": "1.0.0"
     },
     "Filter Residents": {
-      "file": "filter_residents_processor.py",
+      "file": "processors/filter_residents_processor.py",
       "function": "process_filter_residents_file",
       "version": "1.0.0"
     },
     "Find Counties": {
-      "file": "find_counties_processor.py",
+      "file": "processors/find_counties_processor.py",
       "function": "process_find_counties_file",
       "version": "1.0.0"
     },
     "Find NPI": {
-      "file": "medprof_processor.py",
+      "file": "processors/find_npi_processor.py",
       "function": "process_medprof_file",
       "version": "1.0.0"
     },
     "MedProf": {
-      "file": "medprof_processor.py",
+      "file": "processors/medprof_processor.py",
       "function": "process_medprof_file",
       "version": "1.0.1"
     },
     "Residents": {
-      "file": "residents_processor.py",
+      "file": "processors/residents_processor.py",
       "function": "process_residents_file",
       "version": "1.0.0"
     },
     "Vitals": {
-      "file": "vitals_processor.py",
+      "file": "processors/vitals_processor.py",
       "function": "process_vitals_file",
       "version": "1.0.0"
     },
     "Weights": {
-      "file": "weights_processor.py",
+      "file": "processors/weights_processor.py",
       "function": "process_weights_file",
       "version": "1.0.0"
     }
