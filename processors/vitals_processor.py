@@ -14,6 +14,7 @@ from openpyxl.utils import range_boundaries
 from utils import data_migration_resources as dmr
 from utils.exceptions import AbortedByUser
 from utils.file_utils import resource_path
+from utils.file_utils import get_template_path
 #root_abs_path = Path(__file__).resolve().parent.parent.parent
 
 
@@ -425,8 +426,8 @@ def process_vitals_file(
     df_vitals['Value'] = df_vitals.apply(adjust_value, axis=1)
 
     # Adjust the path as necessary.
-    template_path = resource_path(
-        "resources", "templates", "WEIGHTS_AND_VITALS.xlsx")
+    template_path = get_template_path("WEIGHTS_AND_VITALS.xlsx")
+    #template_path = resource_path("resources", "templates", "WEIGHTS_AND_VITALS.xlsx")
     if not template_path.exists():
         error_message = f"Template file not found at {template_path}"
         log_fn("⚠️ " + error_message)

@@ -18,6 +18,7 @@ from openpyxl.worksheet.cell_range import MultiCellRange
 from utils import data_migration_resources as dmr
 from utils.exceptions import AbortedByUser
 from utils.file_utils import resource_path
+from utils.file_utils import get_template_path
 
 #root_abs_path = Path(__file__).resolve().parent.parent.parent
 
@@ -265,9 +266,11 @@ def process_census_file(
 
     log_fn(f"✅ {len(df_census['Client_ID_Number'].unique())} unique residents processed.") 
 
+
     # Adjust the path as necessary.
-    template_path = resource_path(
-        "resources", "templates", "Census.xlsx")
+    template_path = get_template_path("Resident_CENSUS.xlsx")
+    # template_path = resource_path(
+    #     "resources", "templates", "Census.xlsx")
     if not template_path.exists():
         error_message = f"Template file not found at {template_path}"
         log_fn("⚠️ " + error_message)

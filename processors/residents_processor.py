@@ -14,7 +14,7 @@ from openpyxl.utils import range_boundaries
 from utils import data_migration_resources as dmr
 from utils.exceptions import AbortedByUser
 from utils.file_utils import resource_path
-
+from utils.file_utils import get_template_path
 
 def process_residents_file(
         facility_code,
@@ -573,8 +573,8 @@ def process_residents_file(
 
     # Save the DataFrame to an Excel file
     # Adjust the path as necessary.
-    template_path = resource_path(
-        "resources", "templates", "CLIENT.xlsx")
+    template_path = get_template_path("CLIENT.xlsx")
+    #template_path = resource_path("resources", "templates", "CLIENT.xlsx")
     if not template_path.exists():
         error_message = f"Template file not found at {template_path}"
         log_fn("⚠️ " + error_message)

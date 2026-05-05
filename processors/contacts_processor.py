@@ -16,6 +16,7 @@ from fuzzywuzzy import fuzz
 from openpyxl.utils import range_boundaries
 from utils.exceptions import AbortedByUser
 from utils.file_utils import resource_path
+from utils.file_utils import get_template_path
 
 root_abs_path = Path(__file__).resolve().parent.parent.parent
 
@@ -830,7 +831,9 @@ def process_contacts_file(
     log_fn(f"✅ {df_contacts['Client_ID_Number'].nunique()} unique residents processed.")
 
     # Write to an Excel Template
-    template_path = resource_path("resources", "templates", "CLIENT_CONTACT.xlsx")
+    template_path = get_template_path("CLIENT_CONTACT.xlsx")
+    #template_path = resource_path("resources", "templates", "CLIENT_CONTACT.xlsx")
+
     if not template_path.exists():
         error_message = f"Template file not found at {template_path}"
         log_fn("⚠️ " + error_message)
