@@ -1,5 +1,5 @@
 {
-  "version": "2026.05.04",
+  "version": "2026.05.06",
   "processors": {
 
     "Allergies": {
@@ -20,7 +20,7 @@
     "Diagnosis": {
       "file": "processors/diagnosis_processor.py",
       "function": "process_diagnosis_file",
-      "version": "1.0.0"
+      "version": "1.0.1"
     },
     "Filter Residents": {
       "file": "processors/filter_residents_processor.py",

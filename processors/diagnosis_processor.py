@@ -1,4 +1,4 @@
-#VERSION: 1.0.0
+#VERSION: 1.0.1
 
 import os
 import pandas as pd
@@ -65,7 +65,7 @@ def process_diagnosis_file(
         raise Exception(error_message)
 
     all_cols_in = \
-        dmr.import_columns_checker('Weights',
+        dmr.import_columns_checker('Diagnosis',
                                    df_diagnosis_raw.columns.tolist())
     if not all_cols_in[0]:
         log_fn("⚠️ Not all expected columns are present in the Diagnosis file.")
