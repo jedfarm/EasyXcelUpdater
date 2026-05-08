@@ -40,7 +40,7 @@
     "MedProf": {
       "file": "processors/medprof_processor.py",
       "function": "process_medprof_file",
-      "version": "1.0.2"
+      "version": "1.0.3"
     },
     "Residents": {
       "file": "processors/residents_processor.py",
