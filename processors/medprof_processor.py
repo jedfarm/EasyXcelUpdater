@@ -21,7 +21,6 @@ from requests.exceptions import RequestException
 from utils import data_migration_resources as dmr
 from utils.exceptions import AbortedByUser
 from utils.file_utils import resource_path
-#from utils.template_loader import resolve_template
 from utils.file_utils import get_template_path
 
 root_abs_path = Path(__file__).resolve().parent.parent.parent
