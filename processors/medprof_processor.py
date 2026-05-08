@@ -1,4 +1,4 @@
-#VERSION: 1.0.2
+#VERSION: 1.0.3
 
 import os
 import pandas as pd
@@ -416,18 +416,29 @@ def process_medprof_file(
         df_medprof_c3['National_Provider_ID'].str.fullmatch(r'\d{10}', na=False)
     )
 
-    bad_npi_rows = df_medprof_c3.loc[~valid_npi_mask, ['Name', 'National_Provider_ID']].copy()
+    bad_npi_rows = df_medprof_c3.loc[~valid_npi_mask].copy()
 
     if not bad_npi_rows.empty:
         log_fn("⚠️ Some National Provider IDs were not exactly 10 digits and were cleared:")
 
         for idx, row in bad_npi_rows.iterrows():
             bad_original = original_npi.loc[idx]
-            provider_name = row.get('Name', '')
+
+            first = str(row.get("First_Name", "")).strip()
+            middle = str(row.get("Middle_Name", "")).strip()
+            last = str(row.get("Last_Name", "")).strip()
+
+            provider_name = " ".join(
+                part for part in [first, middle, last]
+                if part
+            )
+
+            if not provider_name:
+                provider_name = f"Row {idx + 2}"
 
             log_fn(f"- {provider_name}: {bad_original}")
 
-        df_medprof_c3.loc[~valid_npi_mask, 'National_Provider_ID'] = ''
+        df_medprof_c3.loc[~valid_npi_mask, "National_Provider_ID"] = ""
 
         s = df_medprof_c3['National_Provider_ID'].fillna('').astype(str)
 
