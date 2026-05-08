@@ -374,34 +374,70 @@ def process_medprof_file(
 
     # Data Integrity check on NPI
 
+#     df_medprof_c3['National_Provider_ID'] = (
+#         df_medprof_c3['National_Provider_ID']
+#         .fillna('')                            # NaN → ''
+#         .astype(str)
+#         .str.replace(r'\D', '', regex=True)    # leave only digits
+#     )
+#
+#     if abort_event.is_set():
+#         raise AbortedByUser("Process aborted by user.")
+#
+#     # build the ten-digit mask
+#     valid_ten = df_medprof_c3['National_Provider_ID'].str.fullmatch(r'\d{10}')
+#
+#     # allow blanks, but require ten digits on anything non-blank
+#     check_mask = df_medprof_c3['National_Provider_ID'].eq('') | valid_ten.fillna(False)
+#
+#     # assert only on the non-blank ones
+#     assert check_mask.all(), "Some non-empty National_Provider_ID values are not exactly 10 digits"
+
     df_medprof_c3['National_Provider_ID'] = (
         df_medprof_c3['National_Provider_ID']
-        .fillna('')                            # NaN → ''
+        .fillna('')
         .astype(str)
-        .str.replace(r'\D', '', regex=True)    # leave only digits
+        .str.strip()
     )
-    
-    if abort_event.is_set():
-        raise AbortedByUser("Process aborted by user.")
 
-    # build the ten-digit mask
-    valid_ten = df_medprof_c3['National_Provider_ID'].str.fullmatch(r'\d{10}')
+    # Keep original value for logging
+    original_npi = df_medprof_c3['National_Provider_ID'].copy()
 
-    # allow blanks, but require ten digits on anything non-blank
-    check_mask = df_medprof_c3['National_Provider_ID'].eq('') | valid_ten.fillna(False)
+    # Remove non-digits
+    df_medprof_c3['National_Provider_ID'] = (
+        df_medprof_c3['National_Provider_ID']
+        .str.replace(r'\D', '', regex=True)
+    )
 
-    # assert only on the non-blank ones
-    assert check_mask.all(), "Some non-empty National_Provider_ID values are not exactly 10 digits"
+    # Valid if blank or exactly 10 digits
+    valid_npi_mask = (
+        df_medprof_c3['National_Provider_ID'].eq('')
+        |
+        df_medprof_c3['National_Provider_ID'].str.fullmatch(r'\d{10}', na=False)
+    )
 
-    s = df_medprof_c3['National_Provider_ID'].fillna('').astype(str)
+    bad_npi_rows = df_medprof_c3.loc[~valid_npi_mask, ['Name', 'National_Provider_ID']].copy()
 
-    mask_non_empty = s.str.strip().ne('')                    # not blank
-    mask_not_10 = ~s.str.fullmatch(r'\d{10}')            # not exactly 10 digits
+    if not bad_npi_rows.empty:
+        log_fn("⚠️ Some National Provider IDs were not exactly 10 digits and were cleared:")
 
-    # 3) Select the offending IDs
-    #non_valid_npi = s[mask_non_empty & mask_not_10].tolist()
+        for idx, row in bad_npi_rows.iterrows():
+            bad_original = original_npi.loc[idx]
+            provider_name = row.get('Name', '')
 
-    #non_valid_idx = s[mask_non_empty & mask_not_10].index.tolist()
+            log_fn(f"- {provider_name}: {bad_original}")
+
+        df_medprof_c3.loc[~valid_npi_mask, 'National_Provider_ID'] = ''
+
+        s = df_medprof_c3['National_Provider_ID'].fillna('').astype(str)
+
+        mask_non_empty = s.str.strip().ne('')                    # not blank
+        mask_not_10 = ~s.str.fullmatch(r'\d{10}')            # not exactly 10 digits
+
+        # 3) Select the offending IDs
+        #non_valid_npi = s[mask_non_empty & mask_not_10].tolist()
+
+        #non_valid_idx = s[mask_non_empty & mask_not_10].index.tolist()
 
 
     NON_EMAILS = {
