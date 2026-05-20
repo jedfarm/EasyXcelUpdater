@@ -50,7 +50,7 @@
     "Vitals": {
       "file": "processors/vitals_processor.py",
       "function": "process_vitals_file",
-      "version": "1.0.0"
+      "version": "1.0.1"
     },
     "Weights": {
       "file": "processors/weights_processor.py",
