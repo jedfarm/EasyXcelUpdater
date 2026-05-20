@@ -1,4 +1,4 @@
-#VERSION: 1.0.0
+#VERSION: 1.0.1
 
 import os
 import re
@@ -405,25 +405,74 @@ def process_vitals_file(
 
     df_vitals = df_vitals_c8[columns_to_keep].copy()
 
-    def adjust_value(row):
-        # Only adjust rows where Std_Vitals_ID equals 9.
+    def adjust_o2_saturation_value(row):
+        """Convert decimal O2 saturation values to percentages.
+
+        Example: 0.95 -> 95. Values equal to 1 are converted to 100.
+        Zero is intentionally not converted because zero values are invalid
+        and were already removed before this step.
+        """
         if row['Std_Vitals_ID'] == 9:
             try:
-                # Try to convert the value to float.
                 numeric_val = float(row['Value'])
-                # If the value is between 0 and 1, multiply by 100.
-                if 0 < numeric_val < 1:
+                if 0 < numeric_val <= 1:
                     return numeric_val * 100
-                else:
-                    return row['Value']
             except (ValueError, TypeError):
-                # If conversion fails, return the original value.
-                return row['Value']
-        else:
-            return row['Value']
+                pass
+        return row['Value']
 
-    # Apply the function to each row in df_vitals_c4.
-    df_vitals['Value'] = df_vitals.apply(adjust_value, axis=1)
+    df_vitals['Value'] = df_vitals.apply(adjust_o2_saturation_value, axis=1)
+
+    # Weight vital description is mandatory. If missing, default it to Sitting.
+    weight_missing_description = (
+        (df_vitals['Std_Vitals_ID'] == 1) &
+        (
+            df_vitals['VITAL_DESCRIPTION'].isna() |
+            df_vitals['VITAL_DESCRIPTION'].astype(str).str.strip().eq('')
+        )
+    )
+    df_vitals.loc[weight_missing_description, 'VITAL_DESCRIPTION'] = 'Sitting'
+
+    # Remove values outside meaningful clinical/import ranges.
+    # Ranges are inclusive and intentionally broad enough to avoid deleting
+    # unusual-but-possible values while still eliminating obvious extraction errors.
+    vital_value_ranges = {
+        1: (50, 700),     # Weight, lbs
+        2: (5, 60),       # Respirations, /per minute
+        3: (60, 250),     # Systolic BP, mmHg
+        4: (30, 150),     # Diastolic BP, mmHg
+        5: (90, 110),     # Temperature, °F
+        6: (30, 220),     # Pulse, /per minute
+        7: (20, 1000),    # Blood sugar, mg/dL
+        8: (1, 9),        # Height, ft
+        9: (50, 100),     # O2 Saturation, %
+    }
+
+    df_vitals['Value_Numeric'] = pd.to_numeric(df_vitals['Value'], errors='coerce')
+
+    def is_value_in_meaningful_range(row):
+        std_vital_id = row['Std_Vitals_ID']
+        value = row['Value_Numeric']
+
+        if pd.isna(std_vital_id) or pd.isna(value):
+            return False
+
+        try:
+            std_vital_id = int(std_vital_id)
+        except (ValueError, TypeError):
+            return False
+
+        min_value, max_value = vital_value_ranges.get(std_vital_id, (-np.inf, np.inf))
+        return min_value <= value <= max_value
+
+    before_range_filter = len(df_vitals)
+    df_vitals = df_vitals[df_vitals.apply(is_value_in_meaningful_range, axis=1)].copy()
+    removed_out_of_range = before_range_filter - len(df_vitals)
+    if removed_out_of_range:
+        log_fn(f"⚠️ Removed {removed_out_of_range} vitals outside accepted value ranges.")
+
+    df_vitals.drop(columns=['Value_Numeric'], inplace=True)
+    df_vitals.reset_index(drop=True, inplace=True)
 
     # Adjust the path as necessary.
     template_path = get_template_path("WEIGHTS_AND_VITALS.xlsx")
