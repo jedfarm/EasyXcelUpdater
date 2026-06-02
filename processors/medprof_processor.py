@@ -1,4 +1,4 @@
-#VERSION: 1.0.3
+#VERSION: 1.0.4
 
 import os
 import pandas as pd
@@ -374,46 +374,45 @@ def process_medprof_file(
 
     # Data Integrity check on NPI
 
-#     df_medprof_c3['National_Provider_ID'] = (
-#         df_medprof_c3['National_Provider_ID']
-#         .fillna('')                            # NaN → ''
-#         .astype(str)
-#         .str.replace(r'\D', '', regex=True)    # leave only digits
-#     )
-#
-#     if abort_event.is_set():
-#         raise AbortedByUser("Process aborted by user.")
-#
-#     # build the ten-digit mask
-#     valid_ten = df_medprof_c3['National_Provider_ID'].str.fullmatch(r'\d{10}')
-#
-#     # allow blanks, but require ten digits on anything non-blank
-#     check_mask = df_medprof_c3['National_Provider_ID'].eq('') | valid_ten.fillna(False)
-#
-#     # assert only on the non-blank ones
-#     assert check_mask.all(), "Some non-empty National_Provider_ID values are not exactly 10 digits"
+    def clean_npi_value(value):
+        if pd.isna(value):
+            return ""
 
-    df_medprof_c3['National_Provider_ID'] = (
-        df_medprof_c3['National_Provider_ID']
-        .fillna('')
+        s = str(value).strip()
+
+        if s == "":
+            return ""
+
+        # Fix Excel/pandas float-looking NPIs: 1538197884.0 -> 1538197884
+        if re.fullmatch(r"\d+\.0", s):
+            s = s[:-2]
+
+        # Remove everything except digits
+        digits = re.sub(r"\D", "", s)
+
+        # Keep valid 10-digit NPIs
+        if re.fullmatch(r"\d{10}", digits):
+            return digits
+
+        # Otherwise return original cleaned digits so we can log it as bad
+        return digits
+
+    original_npi = (
+        df_medprof_c3["National_Provider_ID"]
+        .fillna("")
         .astype(str)
         .str.strip()
     )
 
-    # Keep original value for logging
-    original_npi = df_medprof_c3['National_Provider_ID'].copy()
-
-    # Remove non-digits
-    df_medprof_c3['National_Provider_ID'] = (
-        df_medprof_c3['National_Provider_ID']
-        .str.replace(r'\D', '', regex=True)
+    df_medprof_c3["National_Provider_ID"] = (
+        df_medprof_c3["National_Provider_ID"]
+        .apply(clean_npi_value)
     )
 
-    # Valid if blank or exactly 10 digits
     valid_npi_mask = (
-        df_medprof_c3['National_Provider_ID'].eq('')
+        df_medprof_c3["National_Provider_ID"].eq("")
         |
-        df_medprof_c3['National_Provider_ID'].str.fullmatch(r'\d{10}', na=False)
+        df_medprof_c3["National_Provider_ID"].str.fullmatch(r"\d{10}", na=False)
     )
 
     bad_npi_rows = df_medprof_c3.loc[~valid_npi_mask].copy()
@@ -440,15 +439,65 @@ def process_medprof_file(
 
         df_medprof_c3.loc[~valid_npi_mask, "National_Provider_ID"] = ""
 
-        s = df_medprof_c3['National_Provider_ID'].fillna('').astype(str)
 
-        mask_non_empty = s.str.strip().ne('')                    # not blank
-        mask_not_10 = ~s.str.fullmatch(r'\d{10}')            # not exactly 10 digits
-
-        # 3) Select the offending IDs
-        #non_valid_npi = s[mask_non_empty & mask_not_10].tolist()
-
-        #non_valid_idx = s[mask_non_empty & mask_not_10].index.tolist()
+#     df_medprof_c3['National_Provider_ID'] = (
+#         df_medprof_c3['National_Provider_ID']
+#         .fillna('')
+#         .astype(str)
+#         .str.strip()
+#     )
+#
+#     # Keep original value for logging
+#     original_npi = df_medprof_c3['National_Provider_ID'].copy()
+#
+#
+#
+#     # Remove non-digits
+#     df_medprof_c3['National_Provider_ID'] = (
+#         df_medprof_c3['National_Provider_ID']
+#         .str.replace(r'\D', '', regex=True)
+#     )
+#
+#     # Valid if blank or exactly 10 digits
+#     valid_npi_mask = (
+#         df_medprof_c3['National_Provider_ID'].eq('')
+#         |
+#         df_medprof_c3['National_Provider_ID'].str.fullmatch(r'\d{10}', na=False)
+#     )
+#
+#     bad_npi_rows = df_medprof_c3.loc[~valid_npi_mask].copy()
+#
+#     if not bad_npi_rows.empty:
+#         log_fn("⚠️ Some National Provider IDs were not exactly 10 digits and were cleared:")
+#
+#         for idx, row in bad_npi_rows.iterrows():
+#             bad_original = original_npi.loc[idx]
+#
+#             first = str(row.get("First_Name", "")).strip()
+#             middle = str(row.get("Middle_Name", "")).strip()
+#             last = str(row.get("Last_Name", "")).strip()
+#
+#             provider_name = " ".join(
+#                 part for part in [first, middle, last]
+#                 if part
+#             )
+#
+#             if not provider_name:
+#                 provider_name = f"Row {idx + 2}"
+#
+#             log_fn(f"- {provider_name}: {bad_original}")
+#
+#         df_medprof_c3.loc[~valid_npi_mask, "National_Provider_ID"] = ""
+#
+#         s = df_medprof_c3['National_Provider_ID'].fillna('').astype(str)
+#
+#         mask_non_empty = s.str.strip().ne('')                    # not blank
+#         mask_not_10 = ~s.str.fullmatch(r'\d{10}')            # not exactly 10 digits
+#
+#         # 3) Select the offending IDs
+#         #non_valid_npi = s[mask_non_empty & mask_not_10].tolist()
+#
+#         #non_valid_idx = s[mask_non_empty & mask_not_10].index.tolist()
 
 
     NON_EMAILS = {
