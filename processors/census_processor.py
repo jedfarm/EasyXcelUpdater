@@ -1,4 +1,4 @@
-#VERSION: 1.1.0
+#VERSION: 1.1.1
 
 import re
 import numpy as np
@@ -294,14 +294,26 @@ def process_census_file(
     df_census_c3['Place_Holder'] = ''
     df_census_c3['Floor'] = '1st Floor'
 
-    columns_to_keep = ['Facility_Code', 'Client_ID_Number', 'Effective_Date',
+    columns_to_keep_snf = ['Facility_Code', 'Client_ID_Number', 'Effective_Date',
                     'Status_Code', 'Action_Code', 'Place_Holder', 'Payer',
                     'Place_Holder', 'Place_Holder', 'Place_Holder', 'Place_Holder',
                     'Place_Holder', 'Place_Holder', 'Place_Holder', 'Unit', 
                     'Floor', 'Room', 'Bed', 'Place_Holder', 'Place_Holder', 
                     'Resident'
                     ]
-    df_census = df_census_c3[columns_to_keep].copy()
+
+    columns_to_keep_alf = ['Facility_Code', 'Client_ID_Number', 'Effective_Date',
+                    'Status_Code', 'Action_Code', 'Place_Holder', 'Payer',
+                    'Place_Holder', 'Place_Holder', 'Place_Holder',
+                    'Unit', 'Floor', 'Room', 'Bed', 'Place_Holder', 'Place_Holder',
+                    'Resident'
+                    ]
+
+    if facility_type == 'SNF':
+        df_census = df_census_c3[columns_to_keep_snf].copy()
+    else:
+        df_census = df_census_c3[columns_to_keep_alf].copy()
+
     df_census = df_census.fillna("")
 
     log_fn(f"✅ {len(df_census['Client_ID_Number'].unique())} unique residents processed.") 
