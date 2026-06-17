@@ -1,4 +1,4 @@
-#VERSION: 1.0.0
+#VERSION: 1.1.0
 
 import re
 import numpy as np
@@ -146,13 +146,46 @@ def process_census_file(
         }
 
 
-    def _get_codes(status, lookup):
-        """Return (Status_Code, Action_Code) for the first key found in status.lower()."""
-        s = status.lower()
-        for key, (sc, ac) in lookup.items():
-            if key in s:
-                return sc, ac
-        return None, None
+    # def _get_codes(status, lookup):
+    #     """Return (Status_Code, Action_Code) for the first key found in status.lower()."""
+    #     s = status.lower()
+    #     for key, (sc, ac) in lookup.items():
+    #         if key in s:
+    #             return sc, ac
+    #     return None, None
+
+
+    def normalize_status(status):
+        return re.sub(r"\s+", " ", str(status).lower().strip())
+
+
+    def classify_census_status(status, facility_type):
+        s = normalize_status(status)
+
+        if facility_type == "SNF":
+            rules = [
+                (r"\bexpired\b", ("D", "DE")),
+                (r"\bdischarg(?:e|ed)\b", ("D", "DD")),
+                (r"\bhospital\s+leave\b", ("HP", "TO")),
+                (r"\btherapeutic\s+leave\b", ("TP", "L")),
+                (r"\breturn(?:ed)?\b", ("A", "RA")),
+                (r"\b(?:admission|admitted|readmission|readmitted)\b", ("A", "AA")),
+            ]
+        else:
+            rules = [
+                (r"\bexpired\b", ("D", "DC")),
+                (r"\bdischarg(?:e|ed)\b", ("D", "MO")),
+                (r"\b(?:hospital|therapeutic)\s+leave\b", ("HML", "L")),
+                (r"\breturn(?:ed)?\b", ("I", "RL")),
+                (r"\b(?:admission|admitted|readmission|readmitted|move\s*in)\b", ("I", "MI")),
+            ]
+
+        for pattern, codes in rules:
+            if re.search(pattern, s):
+                return codes
+
+        return (None, None)
+
 
     sel_idx = []
     sel_sc  = []
@@ -161,10 +194,14 @@ def process_census_file(
     for client_id, grp in df_census_c2.groupby('Resident'):
         # sort chronologically
         grp = grp.sort_values('Effective_Date')
-        status_lc = grp['Status'].str.lower()
+        #status_lc = grp['Status'].str.lower()
+        grp = grp.copy()
+        grp[["Event_Status_Code", "Event_Action_Code"]] = grp["Status"].apply(
+            lambda x: pd.Series(classify_census_status(x, facility_type))
+        )
 
         # 1) find the oldest admission
-        adm_mask = status_lc.str.contains('|'.join(admission_events.keys()))
+        adm_mask = grp["Event_Action_Code"].isin(["AA", "RA", "MI", "RL"])
         if not adm_mask.any():
             try:
                 log_fn(f"Warning: no admission found for Client_ID_Number {client_id!r}")
@@ -175,16 +212,18 @@ def process_census_file(
         adm_row = grp.loc[adm_mask].iloc[0]
         idx_adm = adm_row.name
         sel_idx.append(idx_adm)
-        sc, ac = _get_codes(adm_row['Status'], admission_events)
+        sc = adm_row["Event_Status_Code"]
+        ac = adm_row["Event_Action_Code"]
         sel_sc.append(sc); sel_ac.append(ac)
 
         # 2) find the most recent leaving event
-        leave_mask = status_lc.str.contains('|'.join(leaving_events.keys()))
+        leave_mask = grp["Event_Action_Code"].isin(["DD", "DE", "TO", "L", "MO", "DC"])
         if leave_mask.any():
             last_leave = grp.loc[leave_mask].iloc[-1]
             idx_leave = last_leave.name
             sel_idx.append(idx_leave)
-            sc, ac = _get_codes(last_leave['Status'], leaving_events)
+            sc = last_leave['Event_Status_Code']
+            ac = last_leave['Event_Action_Code']
             sel_sc.append(sc); sel_ac.append(ac)
 
             # if that leave is the very last row, stop here
@@ -194,14 +233,15 @@ def process_census_file(
             cutoff = last_leave['Effective_Date']
             # 3) admission after that leaving?
             after_leave = grp[grp['Effective_Date'] > cutoff]
-            adm2_mask = after_leave['Status'].str.lower().str.contains(
-                '|'.join(admission_events.keys())
+            adm2_mask = after_leave['Event_Action_Code'].isin(
+                ['AA', 'RA', 'MI', 'RL']
             )
             if adm2_mask.any():
                 adm2 = after_leave.loc[adm2_mask].iloc[-1]
                 idx_adm2 = adm2.name
                 sel_idx.append(idx_adm2)
-                sc, ac = _get_codes(adm2['Status'], admission_events)
+                sc = adm2['Event_Status_Code']
+                ac = adm2['Event_Action_Code']
                 sel_sc.append(sc); sel_ac.append(ac)
 
         # 4) only consider the very last event for an in-house change
