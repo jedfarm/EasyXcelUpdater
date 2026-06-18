@@ -1,4 +1,4 @@
-#VERSION: 1.0.0
+#VERSION: 1.0.1
 
 import os
 import re
@@ -568,6 +568,128 @@ def process_residents_file(
     df_residents['Previous Address:'] = \
         df_residents['Previous Address:'].apply(dmr.address_proper)
     df_residents = df_residents.fillna('')
+
+    def normalize_person_text(val):
+        val = '' if pd.isna(val) else str(val).strip().upper()
+        val = re.sub(r'["“”]', '', val)
+        val = re.sub(r'[^A-Z0-9\s\-]', ' ', val)
+        val = re.sub(r'\s+', ' ', val).strip()
+        return val
+
+    def field_match(a, b, threshold=95):
+        a = normalize_person_text(a)
+        b = normalize_person_text(b)
+
+        if not a or not b:
+            return True
+
+        if a == b:
+            return True
+
+        if a in b or b in a:
+            return True
+
+        return max(
+            fuzz.ratio(a, b),
+            fuzz.partial_ratio(a, b),
+            fuzz.token_set_ratio(a, b)
+        ) >= threshold
+
+    def same_person_duplicate_group(group):
+        ssns = (
+            group['Social_Security_Number']
+            .fillna('')
+            .astype(str)
+            .str.strip()
+        )
+        valid_ssns = sorted(set(ssns[ssns != '']))
+
+        # SSN wins when more than one real SSN exists.
+        if len(valid_ssns) > 1:
+            return False, f"conflicting SSNs: {', '.join(valid_ssns)}"
+
+        base = group.iloc[0]
+
+        for idx, row in group.iloc[1:].iterrows():
+            for col in ['Last_Name', 'First_Name', 'Middle_Name']:
+                if not field_match(base[col], row[col], threshold=95):
+                    return (
+                        False,
+                        f"{col} mismatch: '{base[col]}' vs '{row[col]}'"
+                    )
+
+        return True, ''
+
+    def more_complete_row(group):
+        non_blank_counts = group.apply(
+            lambda row: sum(str(v).strip() != '' for v in row),
+            axis=1
+        )
+        return non_blank_counts.idxmax()
+
+    def consolidate_same_person_group(group):
+        survivor_idx = more_complete_row(group)
+        survivor = group.loc[survivor_idx].copy()
+
+        for col in group.columns:
+            current = str(survivor[col]).strip()
+            if current:
+                continue
+
+            values = (
+                group[col]
+                .fillna('')
+                .astype(str)
+                .map(str.strip)
+            )
+            values = values[values != '']
+
+            if not values.empty:
+                survivor[col] = values.iloc[0]
+
+        return survivor
+
+    def resolve_duplicate_client_ids(df):
+        output_rows = []
+        warning_count = 0
+
+        for client_id, group in df.groupby('Client_ID_Number', sort=False):
+            if len(group) == 1:
+                output_rows.append(group.iloc[0])
+                continue
+
+            same_person, reason = same_person_duplicate_group(group)
+
+            if same_person:
+                output_rows.append(consolidate_same_person_group(group))
+            else:
+                warning_count += 1
+                names = (
+                    group[['Last_Name', 'First_Name', 'Middle_Name', 'Social_Security_Number']]
+                    .fillna('')
+                    .astype(str)
+                    .agg(lambda r: f"{r['Last_Name']}, {r['First_Name']} {r['Middle_Name']} | SSN: {r['Social_Security_Number']}", axis=1)
+                    .tolist()
+                )
+
+                log_fn(
+                    f"⚠️ DUPLICATED Client_ID_Number appears to belong to different people: "
+                    f"{client_id}. Reason: {reason}. Rows kept for manual review: {' || '.join(names)}"
+                )
+
+                # Keep all rows because merging would be unsafe.
+                for _, row in group.iterrows():
+                    output_rows.append(row)
+
+        result = pd.DataFrame(output_rows, columns=df.columns).reset_index(drop=True)
+
+        if warning_count == 0:
+            log_fn("✅ Duplicate Client_ID_Number check completed: no conflicting residents found.")
+
+        return result
+
+    df_residents = resolve_duplicate_client_ids(df_residents)
+
     log_fn("✅ Resident data processing completed successfully.")
     log_fn(f"Total residents processed: {df_residents.shape[0]}")
 

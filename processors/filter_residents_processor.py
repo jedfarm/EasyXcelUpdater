@@ -1,4 +1,4 @@
-#VERSION: 1.0.0
+#VERSION: 1.0.1
 
 import os
 import shutil
@@ -70,6 +70,14 @@ def process_filter_residents_file(
 
     df_residents = pd.read_excel(residents_file_path, usecols=['Client_ID_Number', 
                                     'Last_Name', 'First_Name', 'Middle_Name'])
+
+    duplicated_ids = df_residents[df_residents.duplicated(subset=['Client_ID_Number'])]['Client_ID_Number'].unique().tolist()
+    if duplicated_ids:
+        log_fn("⚠️ The CLIENT file contains duplicates:")
+            for resident_id in duplicated_ids:
+               log_fn(f"- {resident_id}")
+
+        log_fn("We suggest to resolve this issue before proceeding")
     
     orig_cols = df_import.columns.tolist()
     mask = df_import['Client_ID_Number'].isna() | (df_import['Client_ID_Number'] == '')
