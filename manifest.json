@@ -45,7 +45,7 @@
     "Residents": {
       "file": "processors/residents_processor.py",
       "function": "process_residents_file",
-      "version": "1.0.1"
+      "version": "1.0.2"
     },
     "Vitals": {
       "file": "processors/vitals_processor.py",

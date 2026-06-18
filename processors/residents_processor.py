@@ -1,4 +1,4 @@
-#VERSION: 1.0.1
+#VERSION: 1.0.2
 
 import os
 import re
@@ -604,19 +604,58 @@ def process_residents_file(
         )
         valid_ssns = sorted(set(ssns[ssns != '']))
 
-        # SSN wins when more than one real SSN exists.
+        # Priority 1: SSN
+        if len(valid_ssns) == 1:
+            return True, ''
+
         if len(valid_ssns) > 1:
             return False, f"conflicting SSNs: {', '.join(valid_ssns)}"
 
+        birthdates = (
+            group['Date_Of_Birth']
+            .fillna('')
+            .astype(str)
+            .str.strip()
+        )
+        valid_birthdates = sorted(set(birthdates[birthdates != '']))
+
+        # Priority 2: Birthdate
+        if len(valid_birthdates) == 1:
+            return True, ''
+
+        if len(valid_birthdates) > 1:
+            return False, f"conflicting birthdates: {', '.join(valid_birthdates)}"
+
+        # Priority 3: Name
         base = group.iloc[0]
 
-        for idx, row in group.iloc[1:].iterrows():
-            for col in ['Last_Name', 'First_Name', 'Middle_Name']:
-                if not field_match(base[col], row[col], threshold=95):
+        for _, row in group.iloc[1:].iterrows():
+            last_match = field_match(base['Last_Name'], row['Last_Name'], threshold=95)
+            first_match = field_match(base['First_Name'], row['First_Name'], threshold=95)
+
+            if not last_match or not first_match:
+                return (
+                    False,
+                    f"name mismatch: '{base['Last_Name']}, {base['First_Name']}' "
+                    f"vs '{row['Last_Name']}, {row['First_Name']}'"
+                )
+
+            base_middle = normalize_person_text(base['Middle_Name'])
+            row_middle = normalize_person_text(row['Middle_Name'])
+
+            if base_middle and row_middle:
+                if base_middle[0] != row_middle[0]:
                     return (
                         False,
-                        f"{col} mismatch: '{base[col]}' vs '{row[col]}'"
+                        f"middle name mismatch: '{base['Middle_Name']}' vs '{row['Middle_Name']}'"
                     )
+
+                if len(base_middle) > 1 and len(row_middle) > 1:
+                    if not field_match(base_middle, row_middle, threshold=95):
+                        return (
+                            False,
+                            f"middle name mismatch: '{base['Middle_Name']}' vs '{row['Middle_Name']}'"
+                        )
 
         return True, ''
 
@@ -688,7 +727,48 @@ def process_residents_file(
 
         return result
 
+    def warn_duplicate_ssn_different_client_ids(df):
+        ssn_col = 'Social_Security_Number'
+        id_col = 'Client_ID_Number'
+
+        ssn_series = (
+            df[ssn_col]
+            .fillna('')
+            .astype(str)
+            .str.strip()
+        )
+
+        valid_mask = ssn_series.ne('')
+
+        df_valid_ssn = df.loc[valid_mask, [id_col, ssn_col]].copy()
+
+        duplicated_ssns = df_valid_ssn[
+            df_valid_ssn.duplicated(subset=[ssn_col], keep=False)
+        ]
+
+        if duplicated_ssns.empty:
+            return
+
+        for ssn, group in duplicated_ssns.groupby(ssn_col):
+            client_ids = (
+                group[id_col]
+                .fillna('')
+                .astype(str)
+                .str.strip()
+                .drop_duplicates()
+                .tolist()
+            )
+
+            if len(client_ids) > 1:
+                log_fn(
+                    f"⚠️ DUPLICATED SSN across different Client_ID_Number values: "
+                    f"SSN {ssn} belongs to Client_ID_Number(s): "
+                    f"{', '.join(client_ids)}"
+                )
+
+
     df_residents = resolve_duplicate_client_ids(df_residents)
+    warn_duplicate_ssn_different_client_ids(df_residents)
 
     log_fn("✅ Resident data processing completed successfully.")
     log_fn(f"Total residents processed: {df_residents.shape[0]}")
