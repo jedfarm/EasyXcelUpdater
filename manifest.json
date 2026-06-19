@@ -25,7 +25,7 @@
     "Filter Residents": {
       "file": "processors/filter_residents_processor.py",
       "function": "process_filter_residents_file",
-      "version": "1.0.3"
+      "version": "1.0.4"
     },
     "Find Counties": {
       "file": "processors/find_counties_processor.py",
