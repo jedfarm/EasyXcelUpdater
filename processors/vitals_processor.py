@@ -1,4 +1,4 @@
-#VERSION: 1.0.3
+#VERSION: 1.0.4
 
 import os
 import re
@@ -363,16 +363,16 @@ def process_vitals_file(
     df_vitals_c3 = merge_details(df_vitals_c3)
 
         def clean_non_bp_details(details):
-        if pd.isna(details):
+            if pd.isna(details):
+                return details
+
+            details = str(details).strip()
+
+            idx = details.rfind(":")
+            if idx != -1:
+                return details[idx + 1:].strip()
+
             return details
-
-        details = str(details).strip()
-
-        idx = details.rfind(":")
-        if idx != -1:
-            return details[idx + 1:].strip()
-
-        return details
 
     def extract_bp_type(details):
         """
