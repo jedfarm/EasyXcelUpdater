@@ -1,4 +1,4 @@
-#VERSION: 1.0.1
+#VERSION: 1.0.2
 
 import os
 import re
@@ -36,47 +36,124 @@ def process_vitals_file(
     if not isinstance(output_file_path, Path):
         output_file_path = Path(output_file_path)   
 
-    # Read the allergies file
+    # Read the vitals file
+#     try:
+#         col_names = ['Date Taken', 'Time', 'Vital', 'BMI', 'Value',
+#                      'Details', 'Taken By']
+#
+#         # Load the excel file to get sheet names.
+#         excel_file = pd.ExcelFile(input_file_path)
+#
+#         # Check the header on the first sheet to ensure it matches the expected column names.
+#         first_sheet_name = excel_file.sheet_names[0]
+#         # Read only the header (nrows=0 returns an empty DataFrame with columns from the first row).
+#         df_first_sheet_header = \
+#             pd.read_excel(input_file_path, sheet_name=first_sheet_name,
+#                           nrows=0)
+#         actual_header = list(df_first_sheet_header.columns)
+#
+#         if actual_header != col_names:
+#             error_message = "The column names in the file do not match the expected column names."
+#             log_fn(error_message)
+#             log_fn(f"Expected: {col_names}, but got: {actual_header}")
+#             log_fn("Please check the file format and try again.")
+#             raise ValueError(error_message)
+#
+#         # Optimize reading based on the number of sheets.
+#         if len(excel_file.sheet_names) == 1:
+#             # Single sheet: read directly with the expected column names.
+#             df_vitals_raw = pd.read_excel(input_file_path,
+#                                           sheet_name=first_sheet_name,
+#                                           names=col_names,
+#                                           usecols=[0, 1, 2, 3, 4, 5, 6])
+#             log_fn(f"✅ Single sheet found: {first_sheet_name}. Reading data directly.")
+#         else:
+#             # Multiple sheets: read each sheet into its own DataFrame and then concatenate.
+#             dataframes = {
+#                 sheet_name: pd.read_excel(input_file_path, sheet_name=sheet_name,
+#                                           usecols=[0, 1, 2, 3, 4, 5, 6],
+#                                           names=col_names)
+#                 for sheet_name in excel_file.sheet_names
+#             }
+#             df_vitals_raw = pd.concat(dataframes.values(), ignore_index=True)
+#             log_fn(f"✅ Multiple sheets found: {list(dataframes.keys())}. Concatenating data.")
+#
+#     except Exception as e:
+#         error_message = f"Error reading vitals file: {str(e)}"
+#         log_fn(error_message)
+#         raise Exception(error_message)
+
+    # Read the vitals file
     try:
         col_names = ['Date Taken', 'Time', 'Vital', 'BMI', 'Value',
                      'Details', 'Taken By']
-        
-        # Load the excel file to get sheet names.
+
+        def normalize_col_name(col):
+            """
+            Makes column matching tolerant of:
+            - upper/lower case
+            - extra spaces
+            - missing spaces
+            - underscores / hyphens / punctuation
+            """
+            return re.sub(r'[^a-z0-9]+', '', str(col).strip().lower())
+
+        expected_lookup = {
+            normalize_col_name(col): col
+            for col in col_names
+        }
+
+        def standardize_vitals_columns(df, sheet_name):
+            rename_map = {}
+            found = {}
+
+            for actual_col in df.columns:
+                normalized = normalize_col_name(actual_col)
+
+                if normalized in expected_lookup:
+                    expected_col = expected_lookup[normalized]
+
+                    if expected_col in found:
+                        raise ValueError(
+                            f"Duplicate column match for '{expected_col}' in sheet '{sheet_name}'. "
+                            f"Columns found: '{found[expected_col]}' and '{actual_col}'"
+                        )
+
+                    rename_map[actual_col] = expected_col
+                    found[expected_col] = actual_col
+
+            missing = [col for col in col_names if col not in found]
+
+            if missing:
+                raise ValueError(
+                    f"Missing required vitals columns in sheet '{sheet_name}': {missing}. "
+                    f"Actual columns: {list(df.columns)}"
+                )
+
+            extra_cols = [col for col in df.columns if col not in rename_map]
+
+            if extra_cols:
+                log_fn(
+                    f"⚠️ Sheet '{sheet_name}' has extra columns that will be ignored: {extra_cols}"
+                )
+
+            return df.rename(columns=rename_map)[col_names].copy()
+
         excel_file = pd.ExcelFile(input_file_path)
-        
-        # Check the header on the first sheet to ensure it matches the expected column names.
-        first_sheet_name = excel_file.sheet_names[0]
-        # Read only the header (nrows=0 returns an empty DataFrame with columns from the first row).
-        df_first_sheet_header = \
-            pd.read_excel(input_file_path, sheet_name=first_sheet_name,
-                          nrows=0)
-        actual_header = list(df_first_sheet_header.columns)
-        
-        if actual_header != col_names:
-            error_message = "The column names in the file do not match the expected column names."
-            log_fn(error_message)
-            log_fn(f"Expected: {col_names}, but got: {actual_header}")
-            log_fn("Please check the file format and try again.")
-            raise ValueError(error_message)
-        
-        # Optimize reading based on the number of sheets.
+
+        dataframes = []
+
+        for sheet_name in excel_file.sheet_names:
+            df_sheet = pd.read_excel(input_file_path, sheet_name=sheet_name)
+            df_sheet = standardize_vitals_columns(df_sheet, sheet_name)
+            dataframes.append(df_sheet)
+
+        df_vitals_raw = pd.concat(dataframes, ignore_index=True)
+
         if len(excel_file.sheet_names) == 1:
-            # Single sheet: read directly with the expected column names.
-            df_vitals_raw = pd.read_excel(input_file_path,
-                                          sheet_name=first_sheet_name,
-                                          names=col_names,
-                                          usecols=[0, 1, 2, 3, 4, 5, 6])
-            log_fn(f"✅ Single sheet found: {first_sheet_name}. Reading data directly.")   
+            log_fn(f"✅ Single sheet found: {excel_file.sheet_names[0]}. Reading data directly.")
         else:
-            # Multiple sheets: read each sheet into its own DataFrame and then concatenate.
-            dataframes = {
-                sheet_name: pd.read_excel(input_file_path, sheet_name=sheet_name, 
-                                          usecols=[0, 1, 2, 3, 4, 5, 6],
-                                          names=col_names)
-                for sheet_name in excel_file.sheet_names
-            }
-            df_vitals_raw = pd.concat(dataframes.values(), ignore_index=True)
-            log_fn(f"✅ Multiple sheets found: {list(dataframes.keys())}. Concatenating data.")
+            log_fn(f"✅ Multiple sheets found: {excel_file.sheet_names}. Concatenating data.")
 
     except Exception as e:
         error_message = f"Error reading vitals file: {str(e)}"
