@@ -1,4 +1,4 @@
-#VERSION: 1.0.2
+#VERSION: 1.0.3
 
 import os
 import re
@@ -362,21 +362,66 @@ def process_vitals_file(
     # Use the function on your DataFrame
     df_vitals_c3 = merge_details(df_vitals_c3)
 
-    def remove_left_of_last_colon(details):
-        # If the value is NaN, just return it.
+        def clean_non_bp_details(details):
         if pd.isna(details):
             return details
-        # Find the rightmost colon.
+
+        details = str(details).strip()
+
         idx = details.rfind(":")
         if idx != -1:
-            # Return the substring after the rightmost colon, stripped of extra whitespace.
-            return details[idx+1:].strip()
-        # If no colon exists, return the original value.
+            return details[idx + 1:].strip()
+
         return details
 
-    # Apply the function to the "Details" column
-    df_vitals_c3['Details'] = \
-        df_vitals_c3['Details'].apply(remove_left_of_last_colon)
+    def extract_bp_type(details):
+        """
+        Converts blood pressure details into one of the allowed MatrixCare BP types:
+
+        Lying l/arm
+        Lying r/arm
+        Other
+        Sitting l/arm
+        Sitting r/arm
+        Standing l/arm
+        Standing r/arm
+        """
+        if pd.isna(details):
+            return "Other"
+
+        text = str(details).lower()
+
+        position = None
+        arm = None
+
+        if re.search(r'\blying\b', text):
+            position = "Lying"
+        elif re.search(r'\bsitting\b', text):
+            position = "Sitting"
+        elif re.search(r'\bstanding\b', text):
+            position = "Standing"
+
+        if re.search(r'\bright\s*arm\b|\br\s*/?\s*arm\b', text):
+            arm = "r/arm"
+        elif re.search(r'\bleft\s*arm\b|\bl\s*/?\s*arm\b', text):
+            arm = "l/arm"
+
+        if position and arm:
+            return f"{position} {arm}"
+
+        return "Other"
+
+    def normalize_details_by_vital(row):
+        vital = "" if pd.isna(row["Vital"]) else str(row["Vital"]).strip().lower()
+
+        if vital == "blood pressure":
+            return extract_bp_type(row["Details"])
+
+        return clean_non_bp_details(row["Details"])
+
+    df_vitals_c3["Details"] = df_vitals_c3.apply(normalize_details_by_vital, axis=1)
+
+
 
     df_vitals_c4 = df_vitals_c3.copy()
 
@@ -384,8 +429,38 @@ def process_vitals_file(
               'blood sugar', 'blood pressure', 'height', 'weight']
 
     # Convert the first column to datetime format
-    df_vitals_c4['WV_Date'] = pd.to_datetime(df_vitals_c4['Date Taken'], 
-                                             errors='coerce')
+    def combine_date_and_time(date_value, time_value):
+        date_part = pd.to_datetime(date_value, errors="coerce")
+
+        if pd.isna(date_part):
+            return pd.NaT
+
+        if pd.isna(time_value) or str(time_value).strip() == "":
+            return date_part
+
+        time_str = str(time_value).strip()
+
+        # Handles Excel time values such as 0.702777...
+        if isinstance(time_value, (int, float)) and 0 <= time_value < 1:
+            seconds = int(round(float(time_value) * 24 * 60 * 60))
+            hours = seconds // 3600
+            minutes = (seconds % 3600) // 60
+            time_str = f"{hours:02d}:{minutes:02d}"
+
+        combined = pd.to_datetime(
+            f"{date_part.strftime('%m/%d/%Y')} {time_str}",
+            errors="coerce"
+        )
+
+        if pd.isna(combined):
+            return date_part
+
+        return combined
+
+    df_vitals_c4["WV_Date"] = df_vitals_c4.apply(
+        lambda row: combine_date_and_time(row["Date Taken"], row["Time"]),
+        axis=1
+    )
     
     if abort_event.is_set():
         raise AbortedByUser("Process aborted by user.")
@@ -474,8 +549,18 @@ def process_vitals_file(
     df_vitals_c8 = df_vitals_c7[(df_vitals_c7['Col11'].notna()) & (df_vitals_c7['Col11'] != 0)]
     df_vitals_c8 = df_vitals_c8.reset_index(drop=True)
 
-    df_vitals_c8['Date Taken'] = \
-        df_vitals_c8['Date Taken'].apply(dmr.format_date_or_datetime)
+    def format_vitals_datetime(value):
+        dt = pd.to_datetime(value, errors="coerce")
+
+        if pd.isna(dt):
+            return ""
+
+        if dt.hour != 0 or dt.minute != 0:
+            return dt.strftime("%m/%d/%Y %H:%M")
+
+        return dt.strftime("%m/%d/%Y")
+
+    df_vitals_c8["Date Taken"] = df_vitals_c8["WV_Date"].apply(format_vitals_datetime)
 
     columns_to_keep = ['Facility_Code', 'Client_ID_Number', 'Std_Vitals_ID',
                        'Date Taken', 'Value', 'VITAL_DESCRIPTION', 'Resident']
