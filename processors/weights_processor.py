@@ -1,4 +1,4 @@
-#VERSION: 1.0.0
+#VERSION: 1.0.1
 
 import os
 import pandas as pd
@@ -159,7 +159,7 @@ def process_weights_file(
 
     df_weights_c4['Facility_Id'] = facility_code
     df_weights_c4['Std_Vitals_ID'] = std_vitals_id
-    df_weights_c4['Type'] = ''
+    df_weights_c4['Type'] = 'Sitting'
 
     ordered_columns = ['Facility_Id', 'Client_ID_Number', 'Std_Vitals_ID',
                        'Datetime', 'Value', 'Type', 'Resident_Name']

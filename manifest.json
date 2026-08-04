@@ -55,7 +55,7 @@
     "Weights": {
       "file": "processors/weights_processor.py",
       "function": "process_weights_file",
-      "version": "1.0.0"
+      "version": "1.0.1"
     }
   },
   "templates": {
