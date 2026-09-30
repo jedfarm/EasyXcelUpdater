@@ -1,0 +1,110 @@
+--- a/src/gui/main_window.py
++++ b/src/gui/main_window.py
+@@ -15,6 +15,7 @@
+ from processors.find_npi_processor import process_find_npi_file
+ from utils.file_utils import build_output_path
+ from utils.file_utils import resource_path
++from utils.processor_loader import load_processor
+ from PyQt6.QtWidgets import QApplication, QCheckBox
+ import json
+ import os
+@@ -419,20 +420,22 @@
+         self.fnpi_run_btn.setEnabled(False); self.fnpi_abort_btn.setEnabled(True)
+         self.fnpi_progress.setRange(0,0); self.fnpi_log.append("Finding NPI started.")
+         worker = FindNPIWorker(self.fnpi_file_path, self.fnpi_log.append)
++        self.current_fnpi_worker = worker
+         worker.signals.finished.connect(self.find_npi_finished)
+         self.threadpool.start(worker)
+ 
+     def abort_find_npi(self):
+-        if hasattr(self, 'current_worker'):
+-            self.current_worker.abort_event.set()
+-        self.fnpi_log.append("Finding NPI aborted.")
++        worker = getattr(self, 'current_fnpi_worker', None)
++        if worker is not None:
++            worker.abort_event.set()
++            self.fnpi_abort_btn.setEnabled(False)
++            self.fnpi_log.append("Stopping Find NPI...")
++
++    def find_npi_finished(self, success):
++        self.current_fnpi_worker = None
++        self.fnpi_log.append("Finding NPI completed." if success else "Finding NPI stopped or failed.")
+         self.fnpi_run_btn.setEnabled(True); self.fnpi_abort_btn.setEnabled(False)
+-        self.fnpi_progress.setRange(0,100); self.fnpi_progress.setValue(0)
+-
+-    def find_npi_finished(self):
+-        self.fnpi_log.append("Finding NPI completed.")
+-        self.fnpi_run_btn.setEnabled(True); self.fnpi_abort_btn.setEnabled(False)
+-        self.fnpi_progress.setRange(0,100); self.fnpi_progress.setValue(100)
++        self.fnpi_progress.setRange(0,100); self.fnpi_progress.setValue(100 if success else 0)
+ 
+     def switch_view(self, key, index):
+         self.stack.setCurrentIndex(index)
+@@ -565,6 +568,7 @@
+             )
+ 
+ class WorkerSignals(QObject):
++    log = pyqtSignal(str)
+     finished = pyqtSignal(bool)
+     progress = pyqtSignal(int)
+ 
+@@ -653,14 +657,30 @@
+         self.signals = WorkerSignals()
+         self.abort_event = threading.Event()
+         self.input_path = input_path
+-        self.log_fn = log_fn
++        self.signals.log.connect(log_fn, Qt.ConnectionType.QueuedConnection)
++        self.log_fn = self.signals.log.emit
++
++    def _get_processor(self):
++        # Use the same AppData location as utils.updater.
++        processor_file = (
++            Path.home() / "AppData" / "Local" / "EasyXcel"
++            / "processors" / "find_npi_processor.py"
++        )
++        if processor_file.exists():
++            self.log_fn("Using updated Find NPI processor.")
++            return load_processor(processor_file, "process_find_npi_file")
++        self.log_fn("Using bundled Find NPI processor.")
++        return process_find_npi_file
+ 
+     def run(self):
+         ok = False
+         try:
+             out = build_output_path(import_type="Find_NPI", facility_name="", timestamp=True)
+-            # pass your logger (and abort_event if your processor supports it)
+-            process_find_npi_file(self.input_path, out, log_fn=self.log_fn)
++            processor_func = self._get_processor()
++            processor_func(
++                self.input_path, out,
++                log_fn=self.log_fn, abort_event=self.abort_event
++            )
+             self.log_fn(f"✅ Output: {out}")
+             ok = True
+         except AbortedByUser as e:
+--- a/src/processors/find_npi_processor.py
++++ b/src/processors/find_npi_processor.py
+@@ -1,4 +1,4 @@
+-#VERSION: 1.0.0
++#VERSION: 1.0.1
+ 
+ import os
+ import re
+@@ -17,6 +17,7 @@
+ from utils import data_migration_resources as dmr
+ from utils.exceptions import AbortedByUser
+ from utils.file_utils import resource_path
++from utils.file_utils import get_template_path
+ #root_abs_path = Path(__file__).resolve().parent.parent.parent
+ 
+ def process_find_npi_file(
+@@ -780,8 +781,7 @@
+     if abort_event.is_set():
+         raise AbortedByUser("Process aborted by user.")
+ 
+-    template_path = resource_path("resources", "templates",
+-                                  "MEDICAL_PROFESSIONAL.xlsx")
++    template_path = get_template_path("MEDICAL_PROFESSIONAL.xlsx")
+     if not template_path.exists():
+         error_message = f"Template file not found at {template_path}"
+         log_fn("⚠️ " + error_message)
