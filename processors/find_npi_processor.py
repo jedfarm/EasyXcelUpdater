@@ -1,4 +1,4 @@
-#VERSION: 1.0.0
+#VERSION: 1.0.1
 
 import os
 import re
@@ -782,7 +782,6 @@ def process_find_npi_file(
         raise AbortedByUser("Process aborted by user.")
 
     template_path = get_template_path("MEDICAL_PROFESSIONAL.xlsx")
-    #template_path = resource_path("respurces", "templates", "MEDICAL_PROFESSIONAL.xlsx")
     if not template_path.exists():
         error_message = f"Template file not found at {template_path}"
         log_fn("⚠️ " + error_message)
