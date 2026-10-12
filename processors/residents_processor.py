@@ -1,4 +1,4 @@
-#VERSION: 1.0.2
+#VERSION: 1.0.3
 
 import os
 import re
@@ -91,7 +91,8 @@ def process_residents_file(
             resident = None
 
         # Extract the Client ID Number after "MRN:" matching one or more digits with an optional hyphen and digits
-        client_matching = re.search(r"MRN:\s*(\d+(?:-\d+)?)", text, re.IGNORECASE)
+        #client_matching = re.search(r"MRN:\s*(.+)", text, re.IGNORECASE)
+        client_matching = re.search(r"MRN:[ \t]*([^\r\n]+)", text, re.IGNORECASE)
         if client_matching:
             client_id = client_matching.group(1)
         else:
