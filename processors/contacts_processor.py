@@ -1,4 +1,4 @@
-#VERSION: 1.0.1
+#VERSION: 1.0.2
 
 import os
 import pandas as pd
@@ -358,6 +358,14 @@ def process_contacts_file(
     # We then convert the tuple into a Series to assign to new columns.
     df_contacts_c6[['Postal_Zip_Code', 'Address1']] = df_contacts_c6['Address'].apply(
         lambda addr: pd.Series(extract_postal_code(addr))
+    )
+
+    # Discard false zip codes (placeholders such as 00000 / 11111, or codes that
+    # do not exist in the reference database) so they never reach the output.
+    valid_zips = set(df_zip_to_county['zip'].dropna().astype(str))
+    df_contacts_c6['Postal_Zip_Code'] = df_contacts_c6['Postal_Zip_Code'].apply(
+        lambda z: z if (isinstance(z, str) and z in valid_zips
+                        and len(set(z)) > 1) else ''
     )
 
     # 2. Extract State
