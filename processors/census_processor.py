@@ -1,4 +1,4 @@
-#VERSION: 1.1.2
+#VERSION: 1.1.3
 
 import re
 import numpy as np
@@ -81,7 +81,7 @@ def process_census_file(
     df_census_c1['Client_ID_Number'] = None
 
     #id_pattern = r"(\d+)(-\d+)?$"
-    id_pattern = r"(\d+[-_]?\d+)(-\d{2})$"
+    id_pattern = r"(\d+_?\d+)(-\d+)?(-\d{2})$"
 
     # this gives a DataFrame with one column (0) holding the digits
     id_extracted = df_census_c1.loc[resid_mask, 'Start Date'] \
