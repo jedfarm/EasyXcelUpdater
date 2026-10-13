@@ -1,5 +1,5 @@
 {
-  "version": "2026.09.30",
+  "version": "2026.10.13",
   "processors": {
 
     "Allergies": {
@@ -15,7 +15,7 @@
     "Contacts": {
       "file": "processors/contacts_processor.py",
       "function": "process_contacts_file",
-      "version": "1.0.0"
+      "version": "1.0.1"
     },
     "Diagnosis": {
       "file": "processors/diagnosis_processor.py",

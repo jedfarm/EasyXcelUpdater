@@ -1,4 +1,4 @@
-#VERSION: 1.0.0
+#VERSION: 1.0.1
 
 import os
 import pandas as pd
@@ -363,9 +363,18 @@ def process_contacts_file(
     # 2. Extract State
     us_state_codes = dmr.us_state_codes
 
+    # The state is either preceded by a comma (", TX" / "Dallas, TX") or is the
+    # whole content of the address ("TX"). The bare form is only accepted when
+    # it is a valid state code, to avoid eating short words.
     state_pattern = r",\s*([A-Z]{2})$"
+    bare_state_pattern = r"^\s*([A-Z]{2})\s*$"
     df_contacts_c6['Prov_State'] = df_contacts_c6['Address1'].str.extract(state_pattern, expand=False)
     df_contacts_c6['Address1'] = df_contacts_c6['Address1'].str.replace(state_pattern, "", regex=True)
+
+    bare_state = df_contacts_c6['Address1'].str.extract(bare_state_pattern, expand=False)
+    is_bare_state = bare_state.isin(list(us_state_codes.keys())) & df_contacts_c6['Prov_State'].isna()
+    df_contacts_c6.loc[is_bare_state, 'Prov_State'] = bare_state[is_bare_state]
+    df_contacts_c6.loc[is_bare_state, 'Address1'] = ''
     df_contacts_c6['Address1'] = df_contacts_c6['Address1'].str.strip()
 
     # The pattern ^\s*na\s*$ ensures that the entire string is just 'na' with possible surrounding whitespace.
@@ -488,6 +497,10 @@ def process_contacts_file(
     
     # Loop over each row that is missing a zip code.
     for idx, missing_row in df_missing.iterrows():
+        # Addresses with almost no content (e.g. a leftover state code) would
+        # partially match any address, so they must not borrow zip/city/county.
+        if len(re.sub(r'[^A-Za-z0-9]', '', str(missing_row['Address1']))) < 4:
+            continue
         best_score = 0
         best_zip = None
         best_county = None
