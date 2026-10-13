@@ -1,4 +1,4 @@
-#VERSION: 1.0.3
+#VERSION: 1.0.6
 
 import os
 import shutil
@@ -391,10 +391,9 @@ def process_filter_residents_file(
     log_fn = None,
     abort_event=threading.Event()
 ):
-    xlsx = pd.ExcelFile(import_file_path)
-    sheet_name = xlsx.sheet_names[0]
-
-    df_import = pd.read_excel(import_file_path)
+    with pd.ExcelFile(import_file_path) as xlsx:
+        sheet_name = xlsx.sheet_names[0]
+        df_import = xlsx.parse(sheet_name)
 
     if log_fn is None:
         log_fn = lambda msg: None
@@ -444,8 +443,8 @@ def process_filter_residents_file(
     duplicated_ids = df_residents[df_residents.duplicated(subset=['Client_ID_Number'])]['Client_ID_Number'].unique().tolist()
     if duplicated_ids:
         log_fn("⚠️ The CLIENT file contains duplicates:")
-            for resident_id in duplicated_ids:
-               log_fn(f"- {resident_id}")
+        for resident_id in duplicated_ids:
+            log_fn(f"- {resident_id}")
 
         log_fn("We suggest to resolve this issue before proceeding")
 
@@ -526,7 +525,7 @@ def process_filter_residents_file(
                 msg = (f"Ambiguous {col} format: import has '-' in {pct_dash_1:.1%}, "
                     f"residents in {pct_dash_2:.1%}. Unable to determine a majority style.")
                 log_fn(msg)
-                raise ValueError(msg)
+                #raise ValueError(msg)
 
             import_has_dash = pct_dash_1 > threshold
             residents_has_dash = pct_dash_2 > threshold
@@ -537,7 +536,7 @@ def process_filter_residents_file(
                     f"(n={int(nonempty2.sum())}).")
                 #log_fn(msg)
                 log_fn("⚠️ Please, make sure both files use the same Client_ID_Number format.")
-                raise ValueError(msg)
+                #raise ValueError(msg)
 
             # If we get here, formats are alike (both mostly have '-' or both mostly don't)
             df_import[col] = s1
