@@ -1,4 +1,4 @@
-#VERSION: 1.0.6
+#VERSION: 1.0.7
 
 import os
 import re
@@ -227,7 +227,11 @@ def process_vitals_file(
         raise AbortedByUser("Process aborted by user.")
 
     # Purging the dataframe from certain rows we do not longer need
-    df_vitals_c3 = df_vitals_c2[~df_vitals_c2['Date Taken'].str.contains("mr#:", case=False, na=False)]
+    # "MR#:" can appear in any of the original columns, not just 'Date Taken'
+    has_mr = df_vitals_c2[col_names].apply(
+        lambda col: col.astype(str).str.contains("mr#:", case=False, na=False)
+    ).any(axis=1)
+    df_vitals_c3 = df_vitals_c2[~has_mr]
     df_vitals_c3 = df_vitals_c3.copy()
     df_vitals_c3.reset_index(drop=True, inplace=True)
     df_vitals_c3['Unit'] = None
