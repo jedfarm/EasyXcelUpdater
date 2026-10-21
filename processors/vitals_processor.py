@@ -1,4 +1,4 @@
-#VERSION: 1.0.7
+#VERSION: 1.0.8
 
 import os
 import re
@@ -369,7 +369,7 @@ def process_vitals_file(
         return df
 
     # Use the function on your DataFrame
-    df_vitals_c3 = merge_details(df_vitals_c3)
+    df_vitals_c4 = merge_details(df_vitals_c3.copy())
 
     def clean_non_bp_details(details):
         if pd.isna(details):
@@ -428,11 +428,11 @@ def process_vitals_file(
 
         return clean_non_bp_details(row["Details"])
 
-    df_vitals_c3["Details"] = df_vitals_c3.apply(normalize_details_by_vital, axis=1)
+    df_vitals_c4["Details"] = df_vitals_c4.apply(normalize_details_by_vital, axis=1)
 
 
 
-    df_vitals_c4 = df_vitals_c3.copy()
+    df_vitals_c5 = df_vitals_c4.copy()
 
     vitals = ['temperature', 'pulse', 'respirations', 'o2 saturation',
               'blood sugar', 'blood pressure', 'height', 'weight', 'pain']
@@ -466,7 +466,7 @@ def process_vitals_file(
 
         return combined
 
-    df_vitals_c4["WV_Date"] = df_vitals_c4.apply(
+    df_vitals_c5["WV_Date"] = df_vitals_c5.apply(
         lambda row: combine_date_and_time(row["Date Taken"], row["Time"]),
         axis=1
     )
@@ -476,25 +476,26 @@ def process_vitals_file(
     
     # Rearranging the rows
     # Convert the 'Vital' column to a Categorical type with the desired order
-    df_vitals_c4['Vital'] = \
-        pd.Categorical(df_vitals_c4['Vital'].str.lower(), categories=vitals, ordered=True)
+    df_vitals_c5['Vital'] = \
+        pd.Categorical(df_vitals_c5['Vital'].str.lower(), categories=vitals, ordered=True)
 
     # Sort by Client_ID_Number, Col2 (following the categorical order), and WV_Date (most recent first)
-    df_vitals_c5 = df_vitals_c4.sort_values(by=['Resident', 'Vital', 'WV_Date'], ascending=[True, True, False])
+    df_vitals_c6 = df_vitals_c5.sort_values(by=['Resident', 'Vital', 'WV_Date'], ascending=[True, True, False])
 
-    df_vitals_c5 = df_vitals_c5[~pd.isna(df_vitals_c5['Value'])]
+    df_vitals_c6 = df_vitals_c6[~pd.isna(df_vitals_c6['Value'])]
 
-    df_vitals_c5 = df_vitals_c5.drop_duplicates(subset=['Client_ID_Number', 
-                                                        'Vital', 'Value'])
-    df_vitals_c5.reset_index(drop=True, inplace=True)
-    df_vitals_c5 = df_vitals_c5.copy()
+    df_vitals_c6 = df_vitals_c6.drop_duplicates(subset=['Client_ID_Number', 
+                                                        'Vital', 'Value',
+                                                        'WV_Date'])
+    df_vitals_c6.reset_index(drop=True, inplace=True)
+    df_vitals_c6 = df_vitals_c6.copy()
 
     # Dictionary for assigning Std_Vitals_ID
     vital_type_to_id = {'weight': 1, 'temperature': 5, 'blood sugar': 7,
                         'pulse': 6, 'height': 8, 'respirations': 2,
                         'o2 saturation': 9, 'pain': 10}
 
-    df_vitals_c5['Std_Vitals_ID'] = np.nan
+    df_vitals_c6['Std_Vitals_ID'] = np.nan
 
     # Function to split blood pressure values and create new rows
     def split_blood_pressure(df):
@@ -516,10 +517,10 @@ def process_vitals_file(
         return pd.DataFrame(new_rows)
 
     # Apply the function to split blood pressure values
-    df_vitals_c6 = split_blood_pressure(df_vitals_c5)
+    df_vitals_c7 = split_blood_pressure(df_vitals_c6)
 
     # Reset the index to ensure it's sequential
-    df_vitals_c6.reset_index(drop=True, inplace=True)
+    df_vitals_c7.reset_index(drop=True, inplace=True)
 
     # Function to assign Std_Vitals_ID based on VITAL_TYPE
     def assign_std_vitals_id(df, vital_type_to_id):
@@ -532,32 +533,32 @@ def process_vitals_file(
         return df
 
     # Apply the function to assign Std_Vitals_ID
-    df_vitals_c6 = assign_std_vitals_id(df_vitals_c6, vital_type_to_id)
+    df_vitals_c7 = assign_std_vitals_id(df_vitals_c7, vital_type_to_id)
 
-    df_vitals_c6['Facility_Code'] = facility_code
+    df_vitals_c7['Facility_Code'] = facility_code
 
-    df_vitals_c6.rename(columns={'Details': 'VITAL_DESCRIPTION'}, inplace=True)
-    df_vitals_c6['VITAL_DESCRIPTION'] = \
-        df_vitals_c6['VITAL_DESCRIPTION'].fillna('')
+    df_vitals_c7.rename(columns={'Details': 'VITAL_DESCRIPTION'}, inplace=True)
+    df_vitals_c7['VITAL_DESCRIPTION'] = \
+        df_vitals_c7['VITAL_DESCRIPTION'].fillna('')
     
     if abort_event.is_set():
         raise AbortedByUser("Process aborted by user.")
     
-    # Remove duplicate rows from df_vitals_c6
-    df_vitals_c7 = df_vitals_c6.drop_duplicates()
+    # Remove duplicate rows from df_vitals_c7
+    df_vitals_c8 = df_vitals_c7.drop_duplicates()
 
     # Reset the index after removing duplicates (optional)
-    df_vitals_c7 = \
-        df_vitals_c7.reset_index(drop=True)
+    df_vitals_c8 = \
+        df_vitals_c8.reset_index(drop=True)
     
     # Ensure non-numeric values are converted to NaN
-    df_vitals_c7['Col11'] = pd.to_numeric(df_vitals_c7['Value'],
+    df_vitals_c8['Col11'] = pd.to_numeric(df_vitals_c8['Value'],
                                           errors='coerce')
 
     # Drop rows where 'Value' is NaN (non-numeric) or 0 (a pain score of 0 is valid)
-    is_pain = df_vitals_c7['Vital'].astype(str) == 'pain'
-    df_vitals_c8 = df_vitals_c7[(df_vitals_c7['Col11'].notna()) & ((df_vitals_c7['Col11'] != 0) | is_pain)]
-    df_vitals_c8 = df_vitals_c8.reset_index(drop=True)
+    is_pain = df_vitals_c8['Vital'].astype(str) == 'pain'
+    df_vitals_c9 = df_vitals_c8[(df_vitals_c8['Col11'].notna()) & ((df_vitals_c8['Col11'] != 0) | is_pain)]
+    df_vitals_c9 = df_vitals_c9.reset_index(drop=True)
 
     def format_vitals_datetime(value):
         dt = pd.to_datetime(value, errors="coerce")
@@ -570,12 +571,12 @@ def process_vitals_file(
 
         return dt.strftime("%m/%d/%Y")
 
-    df_vitals_c8["Date Taken"] = df_vitals_c8["WV_Date"].apply(format_vitals_datetime)
+    df_vitals_c9["Date Taken"] = df_vitals_c9["WV_Date"].apply(format_vitals_datetime)
 
     columns_to_keep = ['Facility_Code', 'Client_ID_Number', 'Std_Vitals_ID',
                        'Date Taken', 'Value', 'VITAL_DESCRIPTION', 'Resident']
 
-    df_vitals = df_vitals_c8[columns_to_keep].copy()
+    df_vitals = df_vitals_c9[columns_to_keep].copy()
 
     def adjust_o2_saturation_value(row):
         """Convert decimal O2 saturation values to percentages.
