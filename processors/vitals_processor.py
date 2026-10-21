@@ -1,4 +1,4 @@
-#VERSION: 1.0.9
+#VERSION: 1.0.10
 
 import os
 import re
@@ -394,9 +394,12 @@ def process_vitals_file(
         Sitting r/arm
         Standing l/arm
         Standing r/arm
+
+        Missing details stay as an empty string (never "Other"), and a position
+        without an arm defaults to the right arm.
         """
-        if pd.isna(details):
-            return "Other"
+        if pd.isna(details) or str(details).strip() == "":
+            return ""
 
         text = str(details).lower()
 
@@ -417,6 +420,10 @@ def process_vitals_file(
 
         if position and arm:
             return f"{position} {arm}"
+
+        if position:
+            # Arm missing: we always go with the right arm
+            return f"{position} r/arm"
 
         return "Other"
 
@@ -540,6 +547,71 @@ def process_vitals_file(
     df_vitals_c7.rename(columns={'Details': 'VITAL_DESCRIPTION'}, inplace=True)
     df_vitals_c7['VITAL_DESCRIPTION'] = \
         df_vitals_c7['VITAL_DESCRIPTION'].fillna('')
+
+    # Allowed values of the Type column per Std_Vitals_ID, read from the Settings
+    # tab of the WEIGHTS_AND_VITALS template (row 1 = vitals code, values below).
+    def load_allowed_types(path):
+        wb_settings = load_workbook(path, data_only=True)
+        ws_settings = wb_settings['Settings']
+        allowed = {}
+        for col in ws_settings.iter_cols(values_only=True):
+            code = col[0]
+            if isinstance(code, (int, float)):
+                allowed[int(code)] = [str(v).strip() for v in col[1:]
+                                      if v is not None and str(v).strip() != '']
+        wb_settings.close()
+        return allowed
+
+    allowed_types = load_allowed_types(get_template_path("WEIGHTS_AND_VITALS.xlsx"))
+
+    type_aliases = {
+        5: {'ear': 'Tympanic', 'forehead': 'Temporal Artery', 'mouth': 'Oral'},
+        9: {'ra': 'Room air', 'nc': 'Oxygen via nasal cannula'},
+    }
+    no_type_tokens = {'', 'nan', 'no', 'none', 'n/a', 'na'}
+
+    def type_key(text):
+        return re.sub(r'[^a-z0-9]', '', str(text).lower())
+
+    def match_allowed_type(raw, std_id):
+        """Maps free text to one of the allowed Type values for std_id, or ''."""
+        allowed = allowed_types.get(std_id, [])
+        if not allowed or raw is None or pd.isna(raw):
+            return ''
+        raw = str(raw).strip()
+        key = type_key(raw)
+        keys = {type_key(a): a for a in allowed}
+
+        if key in keys:                                  # exact (ignoring case/punctuation)
+            return keys[key]
+        if raw.lower() in no_type_tokens:                # e.g. "Oxygen: No" -> nothing
+            return ''
+        alias = type_aliases.get(std_id, {}).get(raw.lower())
+        if alias in allowed:
+            return alias
+        if len(key) >= 3:                                # partial: Temporal -> Temporal Artery
+            partial = [a for k, a in keys.items() if key in k]
+            if len(partial) == 1:
+                return partial[0]
+        contained = [a for k, a in keys.items() if k in key]   # allowed value inside the text
+        if contained:
+            return max(contained, key=lambda a: len(type_key(a)))
+        return ''
+
+    def normalize_type(row):
+        try:
+            std_id = int(row['Std_Vitals_ID'])
+        except (ValueError, TypeError):
+            return ''
+
+        result = match_allowed_type(row['VITAL_DESCRIPTION'], std_id)
+        if result == '' and std_id == 7:                 # blood sugar: Type is the unit
+            result = match_allowed_type(row['Unit'], std_id)
+        if result == '' and std_id == 1:                 # weight always needs a Type
+            result = 'Sitting'
+        return result
+
+    df_vitals_c7['VITAL_DESCRIPTION'] = df_vitals_c7.apply(normalize_type, axis=1)
     
     if abort_event.is_set():
         raise AbortedByUser("Process aborted by user.")
