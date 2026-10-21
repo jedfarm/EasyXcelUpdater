@@ -1,4 +1,4 @@
-#VERSION: 1.1.0
+#VERSION: 1.1.1
 
 import os
 import re
@@ -168,6 +168,20 @@ def process_vitals_file(
         log_fn("⚠️ No data found in the vitals file.")
         raise ValueError("The vitals file is empty or does not contain valid data.")    
 
+    # Consolidate all the text of the rows holding "MR#:" (in any column) into the
+    # 'Date Taken' column and clear the rest of the cells of those rows.
+    mr_mask = df_vitals_c1[col_names].apply(
+        lambda col: col.astype(str).str.contains("mr#:", case=False, na=False)
+    ).any(axis=1)
+    other_cols = [c for c in col_names if c != 'Date Taken']
+    df_vitals_c1['Date Taken'] = df_vitals_c1['Date Taken'].astype(object)
+
+    for idx in df_vitals_c1.index[mr_mask]:
+        parts = [str(v).strip() for v in df_vitals_c1.loc[idx, col_names]
+                 if pd.notna(v) and str(v).strip() != '']
+        df_vitals_c1.at[idx, 'Date Taken'] = ' '.join(parts)
+        df_vitals_c1.loc[idx, other_cols] = np.nan
+
     resid_pattern = r'MR#: *([A-Z0-9#]+(?:[-_][A-Z0-9]+)*)'
     resident_pattern = r"^\s*(?P<resident>(?P<lastname>[A-Za-z][A-Za-z\-'\.]*(?:\s+[A-Za-z\-'\.]+)*),\s+(?P<firstname>[A-Za-z][A-Za-z\-'\.]*)(?:\s+(?P<middlename>[A-Za-z\-'\.]+))?)"
 
@@ -176,16 +190,8 @@ def process_vitals_file(
         match = re.findall(resid_pattern, str(cell))
         return match[0] if match else None
 
-    # Define a function to extract the pattern from an entire row.
-    def extract_from_row(row):
-        for cell in row:
-            result = extract_from_cell(cell)
-            if result is not None:
-                return result
-        return None
-
-    # Apply the function across rows. This will check every cell in the row until a match is found.
-    df_vitals_c1['Client_ID_Number'] = df_vitals_c1.apply(extract_from_row, axis=1)
+    # After the consolidation the MR# can only be in the 'Date Taken' column.
+    df_vitals_c1['Client_ID_Number'] = df_vitals_c1['Date Taken'].apply(extract_from_cell)
 
     if abort_event.is_set():
         raise AbortedByUser("Process aborted by user.")
@@ -201,6 +207,12 @@ def process_vitals_file(
             The resident name substring if found; otherwise, None.
         """
         text = str(text).strip()  # Ensure we work with a stripped string.
+        # The consolidated text can carry the MR# and other text: the name is the text
+        # before "MR#:"; if there is none, the text after the MR# token is used.
+        before, sep, after = text.partition('MR#:')
+        if sep:
+            after = re.sub(r'^\s*[A-Z0-9#]+(?:[-_][A-Z0-9]+)*', '', after)
+            text = before.strip() or after.strip()
         match = re.match(resident_pattern, text)
         if match:
             # Return the complete matched resident name.
