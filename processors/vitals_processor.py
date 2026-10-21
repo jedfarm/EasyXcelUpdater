@@ -1,4 +1,4 @@
-#VERSION: 1.0.8
+#VERSION: 1.0.9
 
 import os
 import re
@@ -544,12 +544,9 @@ def process_vitals_file(
     if abort_event.is_set():
         raise AbortedByUser("Process aborted by user.")
     
-    # Remove duplicate rows from df_vitals_c7
-    df_vitals_c8 = df_vitals_c7.drop_duplicates()
-
-    # Reset the index after removing duplicates (optional)
-    df_vitals_c8 = \
-        df_vitals_c8.reset_index(drop=True)
+    # No drop_duplicates here: blood pressure was already split into systolic
+    # and diastolic rows, so deduplication must happen before that step.
+    df_vitals_c8 = df_vitals_c7.reset_index(drop=True)
     
     # Ensure non-numeric values are converted to NaN
     df_vitals_c8['Col11'] = pd.to_numeric(df_vitals_c8['Value'],
