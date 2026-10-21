@@ -1,4 +1,4 @@
-#VERSION: 1.0.5
+#VERSION: 1.0.6
 
 import os
 import re
@@ -168,7 +168,7 @@ def process_vitals_file(
         log_fn("⚠️ No data found in the vitals file.")
         raise ValueError("The vitals file is empty or does not contain valid data.")    
 
-    resid_pattern = r'MR#: *([A-Z0-9#]+(?:-\d+)?)'
+    resid_pattern = r'MR#: *([A-Z0-9#]+(?:[-_][A-Z0-9]+)*)'
     resident_pattern = r"^\s*(?P<resident>(?P<lastname>[A-Za-z][A-Za-z\-'\.]*(?:\s+[A-Za-z\-'\.]+)*),\s+(?P<firstname>[A-Za-z][A-Za-z\-'\.]*)(?:\s+(?P<middlename>[A-Za-z\-'\.]+))?)"
 
     # Define a function to extract the pattern from each cell.
@@ -213,7 +213,7 @@ def process_vitals_file(
     df_vitals_c1['Client_ID_Number'] = df_vitals_c1['Client_ID_Number'].ffill()
     df_vitals_c1['Resident'] = df_vitals_c1['Resident'].ffill()
 
-    vitals_to_del = ['fluids', 'bedtime snack', 'pain', 'urine', 'lunch', 'bowel movement',
+    vitals_to_del = ['fluids', 'bedtime snack', 'urine', 'lunch', 'bowel movement',
                  'dinner', 'breakfast', 'bmi:', 'am snack', 'pm snack', 'supplements',
                  'emesis']
     
@@ -310,6 +310,11 @@ def process_vitals_file(
             #print("Blood sugar condition met for row:", row.name)
             row['Unit'] = 'mg/dL'
             row['Value'] = row['Value'].replace('mg/dL', '', 1).strip()
+        elif vital.strip() == 'pain':
+            # Pain scale is always out of 10, so "3 of 10" becomes "3"
+            pain_match = re.match(r'^\s*(\d+(?:\.\d+)?)\s*(?:of|/)\s*10\s*$', value_lower)
+            if pain_match:
+                row['Value'] = pain_match.group(1)
         elif 'height' in vital and 'ft' in value_lower:
             #print("Height condition met for row:", row.name)
             row['Unit'] = 'ft'
@@ -426,7 +431,7 @@ def process_vitals_file(
     df_vitals_c4 = df_vitals_c3.copy()
 
     vitals = ['temperature', 'pulse', 'respirations', 'o2 saturation',
-              'blood sugar', 'blood pressure', 'height', 'weight']
+              'blood sugar', 'blood pressure', 'height', 'weight', 'pain']
 
     # Convert the first column to datetime format
     def combine_date_and_time(date_value, time_value):
@@ -483,7 +488,7 @@ def process_vitals_file(
     # Dictionary for assigning Std_Vitals_ID
     vital_type_to_id = {'weight': 1, 'temperature': 5, 'blood sugar': 7,
                         'pulse': 6, 'height': 8, 'respirations': 2,
-                        'o2 saturation': 9}
+                        'o2 saturation': 9, 'pain': 10}
 
     df_vitals_c5['Std_Vitals_ID'] = np.nan
 
@@ -545,8 +550,9 @@ def process_vitals_file(
     df_vitals_c7['Col11'] = pd.to_numeric(df_vitals_c7['Value'],
                                           errors='coerce')
 
-    # Drop rows where 'Value' is NaN (non-numeric) or 0
-    df_vitals_c8 = df_vitals_c7[(df_vitals_c7['Col11'].notna()) & (df_vitals_c7['Col11'] != 0)]
+    # Drop rows where 'Value' is NaN (non-numeric) or 0 (a pain score of 0 is valid)
+    is_pain = df_vitals_c7['Vital'].astype(str) == 'pain'
+    df_vitals_c8 = df_vitals_c7[(df_vitals_c7['Col11'].notna()) & ((df_vitals_c7['Col11'] != 0) | is_pain)]
     df_vitals_c8 = df_vitals_c8.reset_index(drop=True)
 
     def format_vitals_datetime(value):
@@ -608,6 +614,7 @@ def process_vitals_file(
         7: (20, 1000),    # Blood sugar, mg/dL
         8: (1, 9),        # Height, ft
         9: (50, 100),     # O2 Saturation, %
+        10: (0, 10),      # Pain, scale of 10
     }
 
     df_vitals['Value_Numeric'] = pd.to_numeric(df_vitals['Value'], errors='coerce')
